@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+config.toml
+runs/
+profiles/
+*.token
+.env
+bench/results/runs/
+bench/results/discarded/
+bench/logs/
+evals/**/__pycache__/

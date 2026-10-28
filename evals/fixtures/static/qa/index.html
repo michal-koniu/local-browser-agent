@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plant Shop</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #fafaf7; color: #222; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 14px 28px;
+           background: #2f5d3a; color: #fff; }
+  header a { color: #fff; margin-left: 18px; text-decoration: none; font-weight: 600; }
+  main { max-width: 980px; margin: 28px auto; padding: 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 18px; }
+  .card h3 { margin: 0 0 6px; }
+  .price { font-size: 20px; font-weight: 700; color: #2f5d3a; margin: 8px 0 12px; }
+  .price.sale { color: #fff; }
+  button { background: #2f5d3a; color: #fff; border: 0; border-radius: 6px; padding: 9px 16px;
+           font-size: 15px; cursor: pointer; }
+  input { padding: 8px; font-size: 15px; border: 1px solid #bbb; border-radius: 6px; }
+  label { display: block; margin: 12px 0 4px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; }
+  td, th { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
+  .msg { margin-top: 14px; padding: 10px; border-radius: 6px; }
+  .ok { background: #e3f4e6; } .err { background: #fbe3e3; }
+  #checkout-wrap { position: relative; display: inline-block; margin-top: 18px; }
+  #promo-layer { position: absolute; inset: -6px; background: transparent; }
+</style>
+</head>
+<body>
+<header>
+  <a href="#/" style="margin:0;font-size:20px">Plant Shop</a>
+  <nav>
+    <a href="#/shop">Shop</a>
+    <a href="#/cart">Cart (<span id="cart-count">0</span>)</a>
+    <a href="#/login">Log in</a>
+    <a href="/qa/help.html">Help</a>
+  </nav>
+</header>
+<main id="app"></main>
+<script>
+const PRODUCTS = [
+  { id: 1, name: "Monstera", price: 24.50 },
+  { id: 2, name: "Fern", price: 12.00, sale: true },
+  { id: 3, name: "Cactus", price: 8.25 },
+];
+const cart = {};          // id -> quantity
+let user = null;
+
+function count() { return Object.values(cart).reduce((a, b) => a + b, 0); }
+function refreshCount() { document.getElementById("cart-count").textContent = count(); }
+
+function home() {
+  return `<h1>Welcome${user ? ", " + user : ""}!</h1>
+    <p>Fresh plants delivered to your door.</p>
+    <p><a href="#/shop"><button>Browse plants</button></a></p>`;
+}
+
+function shop() {
+  setTimeout(() => {
+    const rec = window.recommendations;
+    document.title = "Plant Shop - " + rec.title;
+  }, 50);
+  return `<h1>Shop</h1><div class="grid">` + PRODUCTS.map(p => `
+    <div class="card">
+      <h3>${p.name}</h3>
+      <div class="price${p.sale ? " sale" : ""}">$${p.price.toFixed(2)}</div>
+      <label for="q${p.id}">Quantity</label>
+      <input id="q${p.id}" type="number" min="1" value="1" style="width:70px">
+      <button onclick="add(${p.id})">Add to cart</button>
+    </div>`).join("") + `</div><div id="added" class="msg" hidden></div>`;
+}
+
+function add(id) {
+  const q = parseInt(document.getElementById("q" + id).value, 10);
+  if (!(q > 0)) { const m = document.getElementById("added"); m.hidden = false;
+    m.className = "msg err"; m.textContent = "Enter a quantity of at least 1."; return; }
+  cart[id] = (cart[id] || 0) + q;
+  refreshCount();
+  const m = document.getElementById("added");
+  m.hidden = false; m.className = "msg ok";
+  m.textContent = `Added ${q} × ${PRODUCTS.find(p => p.id === id).name} to the cart.`;
+}
+
+function cartView() {
+  const ids = Object.keys(cart);
+  if (!ids.length) return `<h1>Your cart</h1><p>The cart is empty.</p>`;
+  let total = 0;
+  const rows = ids.map(id => {
+    const p = PRODUCTS.find(x => x.id == id);
+    const line = (p.price * cart[id]).toFixed(2);
+    total = total + line;
+    return `<tr><td>${p.name}</td><td>${cart[id]}</td><td>$${line}</td></tr>`;
+  }).join("");
+  return `<h1>Your cart</h1>
+    <table><tr><th>Plant</th><th>Quantity</th><th>Price</th></tr>${rows}
+    <tr><th colspan="2">Total</th><th id="total">$${total}</th></tr></table>
+    <div id="checkout-wrap"><button onclick="checkout()">Checkout</button><div id="promo-layer"></div></div>
+    <div id="done" class="msg ok" hidden>Thank you! Your order is on its way.</div>`;
+}
+
+function checkout() { document.getElementById("done").hidden = false; }
+
+function login() {
+  return `<h1>Log in</h1>
+    <form onsubmit="return doLogin(event)">
+      <label for="email">E-mail</label><input id="email" type="text" style="width:280px">
+      <label for="password">Password</label><input id="password" type="password" style="width:280px">
+      <p><button type="submit">Log in</button></p>
+    </form><div id="login-msg"></div>`;
+}
+
+function doLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById("email").value.trim();
+  const box = document.getElementById("login-msg");
+  if (!email) { box.className = "msg err"; box.textContent = "Please enter your e-mail."; return false; }
+  user = email;
+  box.className = "msg ok"; box.textContent = "Welcome back, " + email + "!";
+  return false;
+}
+
+function route() {
+  const r = location.hash.replace("#/", "");
+  const view = { "": home, shop: shop, cart: cartView, login: login }[r] || home;
+  document.getElementById("app").innerHTML = view();
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
