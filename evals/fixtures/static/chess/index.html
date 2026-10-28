@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Puzzle Club - Chess puzzles</title>
+<style>
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #302e2b; color: #eee; }
+  header { padding: 12px 24px; background: #262421; display: flex; gap: 24px; align-items: center; }
+  header b { font-size: 20px; } header a { color: #bbb; text-decoration: none; }
+  .wrap { display: flex; gap: 28px; padding: 24px; align-items: flex-start; }
+  canvas { display: block; border-radius: 4px; box-shadow: 0 4px 18px #0008; cursor: pointer; touch-action: none; }
+  .panel { background: #262421; border-radius: 8px; padding: 18px 20px; width: 320px; }
+  .panel h1 { font-size: 18px; margin: 0 0 12px; }
+  #status { font-size: 17px; font-weight: 600; min-height: 26px; margin: 10px 0; }
+  #status.win { color: #8fd18f; } #status.lose { color: #f08a8a; }
+  #moves { font-family: ui-monospace, Menlo, monospace; color: #ccc; min-height: 22px; }
+  button { background: #81b64c; color: #fff; border: 0; border-radius: 6px; padding: 9px 16px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+  .hint { color: #999; font-size: 13px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<header><b>Puzzle Club</b><a href="/chess/">Puzzle 1</a><a href="/chess/?p=2">Puzzle 2</a></header>
+<div class="wrap">
+  <canvas id="board" width="480" height="480" aria-label="Chess board"></canvas>
+  <div class="panel">
+    <h1 id="title">Loading...</h1>
+    <div id="status" role="status" aria-live="polite"></div>
+    <div>Moves: <span id="moves"></span></div>
+    <p><button id="retry" type="button">Retry</button></p>
+    <p class="hint">Move a piece by dragging it to its new square, or click the piece and then click the target square.
+      You play White; the board is shown from White's side.</p>
+  </div>
+</div>
+<script>
+const P = new URLSearchParams(location.search).get('p') === '2' ? '2' : '1';
+const S = 60, FILES = 'abcdefgh';
+const canvas = document.getElementById('board'), ctx = canvas.getContext('2d');
+let st = null, sel = null, drag = null, flash = null;
+
+// Piece pictures: simple hand-drawn SVG shapes, rendered into the canvas (they have no accessible names).
+const SHAPES = {
+  p: '<circle cx="22.5" cy="13" r="6"/><path d="M15 36 C16 26 18 22 22.5 20 C27 22 29 26 30 36 Z"/><rect x="11" y="35" width="23" height="5" rx="2"/>',
+  r: '<path d="M11 40 h23 v-4 h-3 l-2 -15 h3 v-9 h-4 v4 h-3.5 v-4 h-4 v4 h-3.5 v-4 h-4 v9 h3 l-2 15 h-3 z"/>',
+  n: '<path d="M13 40 h21 C34 30 32 20 30 15 C28 9 23 6 17 6 L16 10 L12 13 C9 16 8 20 10 22 C12 24 15 23 18 20 C19 24 14 29 13 33 Z"/><circle cx="17" cy="13" r="1.6" class="d"/>',
+  b: '<rect x="11" y="35" width="23" height="5" rx="2"/><path d="M15 35 C14 27 17 19 22.5 13 C28 19 31 27 30 35 Z"/><circle cx="22.5" cy="9.5" r="3.2"/><path d="M19.5 28 L26 21" class="l"/>',
+  q: '<rect x="10" y="35" width="25" height="5" rx="2"/><path d="M12 35 L9 15 L16 27 L18 12 L22.5 26 L27 12 L29 27 L36 15 L33 35 Z"/><circle cx="9" cy="13" r="2.5"/><circle cx="18" cy="10" r="2.5"/><circle cx="27" cy="10" r="2.5"/><circle cx="36" cy="13" r="2.5"/>',
+  k: '<rect x="9" y="35" width="27" height="5" rx="2"/><path d="M11 35 C7 24 12 15 22.5 15 C33 15 38 24 34 35 Z"/><path d="M12.5 29 h20" class="l"/><path d="M22.5 1.5 v12 M17 6.5 h11" class="l"/>',
+};
+const IMG = {};
+function svg(kind, white) {
+  const fill = white ? '#f7f7f2' : '#2b2b2b', stroke = white ? '#1b1b1b' : '#000', detail = white ? '#1b1b1b' : '#f0f0f0';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="45" height="45" viewBox="0 0 45 45"><style>
+     *{fill:${fill};stroke:${stroke};stroke-width:1.5;stroke-linejoin:round} .d{fill:${detail};stroke:none}
+     .l{fill:none;stroke:${white ? stroke : detail};stroke-width:2.2}</style>${SHAPES[kind]}</svg>`);
+}
+function loadImages() {
+  const all = [];
+  for (const k of 'prnbqk') for (const w of [true, false]) {
+    const im = new Image(); const key = w ? k.toUpperCase() : k; IMG[key] = im;
+    all.push(new Promise(res => { im.onload = res; im.onerror = res; }));
+    im.src = svg(k, w);
+  }
+  return Promise.all(all);
+}
+
+function xyOf(sq) { return [FILES.indexOf(sq[0]) * S, (8 - parseInt(sq[1], 10)) * S]; }
+function sqAt(x, y) {
+  const f = Math.floor(x / S), r = 7 - Math.floor(y / S);
+  return (f < 0 || f > 7 || r < 0 || r > 7) ? null : FILES[f] + (r + 1);
+}
+function isWhite(p) { return p && p === p.toUpperCase(); }
+
+function draw() {
+  for (let f = 0; f < 8; f++) for (let r = 0; r < 8; r++) {
+    ctx.fillStyle = (f + r) % 2 ? '#f0d9b5' : '#b58863';
+    ctx.fillRect(f * S, (7 - r) * S, S, S);
+  }
+  const mark = (sq, color) => { const [x, y] = xyOf(sq); ctx.fillStyle = color; ctx.fillRect(x, y, S, S); };
+  if (st.last) { mark(st.last[0], 'rgba(205,210,106,.75)'); mark(st.last[1], 'rgba(205,210,106,.75)'); }
+  if (sel) mark(sel, 'rgba(20,85,30,.5)');
+  if (flash) mark(flash, 'rgba(220,40,40,.55)');
+  ctx.font = '600 11px system-ui, sans-serif';
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = i % 2 ? '#b58863' : '#f0d9b5';
+    ctx.fillText(FILES[i], i * S + S - 10, 8 * S - 4);
+    ctx.fillStyle = i % 2 ? '#f0d9b5' : '#b58863';
+    ctx.fillText(String(8 - i), 3, i * S + 12);
+  }
+  for (const [sq, p] of Object.entries(st.board)) {
+    if (drag && drag.moved && sq === drag.from) continue;
+    const [x, y] = xyOf(sq); ctx.drawImage(IMG[p], x + 4, y + 4, S - 8, S - 8);
+  }
+  if (drag && drag.moved) ctx.drawImage(IMG[st.board[drag.from]], drag.x - S / 2, drag.y - S / 2, S, S);
+}
+
+function show() {
+  document.getElementById('title').textContent = st.title;
+  const s = document.getElementById('status');
+  s.textContent = st.message; s.className = st.status === 'checkmate' ? 'win' : st.status === 'not_mate' ? 'lose' : '';
+  const parts = [];
+  for (let i = 0; i < st.moves.length; i += 2) parts.push((i / 2 + 1) + '. ' + st.moves.slice(i, i + 2).join(' '));
+  document.getElementById('moves').textContent = parts.join('  ');
+  draw();
+}
+
+async function api(path, body) {
+  const r = await fetch('/chess/api/' + path, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                body: JSON.stringify(Object.assign({p: P}, body || {}))});
+  return r.json();
+}
+
+async function tryMove(from, to) {
+  sel = null;
+  const res = await api('move', {from, to});
+  st = res;
+  if (res.error) {
+    flash = to; show(); document.getElementById('status').textContent = res.error;
+    setTimeout(() => { flash = null; draw(); }, 600);
+  } else show();
+}
+
+function pos(e) { const b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
+
+canvas.addEventListener('mousedown', e => {
+  if (!st || st.status !== 'playing' || st.to_move !== 'w') return;
+  e.preventDefault();
+  const [x, y] = pos(e), sq = sqAt(x, y), p = st.board[sq];
+  if (sel && sq !== sel && !isWhite(p)) { const from = sel; sel = null; tryMove(from, sq); return; }
+  if (isWhite(p)) drag = {from: sq, sx: x, sy: y, x, y, moved: false};
+  else { sel = null; draw(); }
+});
+document.addEventListener('mousemove', e => {
+  if (!drag) return;
+  const [x, y] = pos(e); drag.x = x; drag.y = y;
+  if (Math.abs(x - drag.sx) + Math.abs(y - drag.sy) > 4) drag.moved = true;
+  if (drag.moved) draw();
+});
+document.addEventListener('mouseup', e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  const [x, y] = pos(e), to = sqAt(x, y);
+  if (d.moved) { if (to && to !== d.from) tryMove(d.from, to); else draw(); return; }
+  sel = sel === d.from ? null : d.from; draw();
+});
+document.getElementById('retry').addEventListener('click', async () => { sel = null; st = await api('retry'); show(); });
+
+loadImages().then(async () => { st = await (await fetch('/chess/api/state?p=' + P)).json(); show(); });
+</script>
+</body>
+</html>

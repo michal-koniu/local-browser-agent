@@ -1,0 +1,8 @@
+{
+  "name": "local-browser-agent",
+  "private": true,
+  "description": "Browser tool server used by the harness (pinned).",
+  "dependencies": {
+    "@playwright/mcp": "0.0.83"
+  }
+}

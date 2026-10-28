@@ -1,0 +1,80 @@
+# Copy to config.toml (git-ignored) and adjust. Command-line flags override these values.
+
+base_url = "http://127.0.0.1:8080/v1"   # any OpenAI-compatible server: llama-server, vLLM, llama-swap, Ollama...
+api_key = "local"
+default_model = "local"
+
+# One table per model, picked with --model NAME. "id" is the model name your server expects.
+# vision = true: the model gets screenshots and the click_at / drag_at tools.
+# coords: how the model writes screenshot coordinates - measure it: python -m browser_agent calibrate
+# Sampling: use the model vendor's recommendation; slightly lower temperature helps precision on long tasks.
+[models.local]
+id = "qwen3.8-flash-next"
+vision = true
+coords = "norm1000"
+temperature = 0.6
+top_p = 0.95
+top_k = 20
+presence_penalty = 0.0
+max_tokens = 16384
+
+[agent]
+max_steps = 150          # model turns before the run stops with status "step-limit"
+keep_snapshots = 2       # older page snapshots in the history become a one-line stub
+keep_screenshots = 1
+context_budget = 150000  # prompt tokens; above it the history is compacted harder
+keep_reasoning = false   # send the model's thinking back in the history (more context, sometimes more coherent)
+max_tool_chars = 40000   # a longer tool result is cut (the model can use browser_find)
+repeat_limit = 3         # the same call this many times in a row -> the model is told to change approach
+mark_new = true          # mark elements that appeared since the last snapshot with [new]
+allow_view_source = false  # false: the model must use the page like a person, not read its source
+
+[browser]
+mode = "isolated"        # isolated: fresh profile each run | profile: profiles/<profile>, logins kept |
+                         # cdp: attach to your own running Chrome (you see and can take over everything)
+profile = "default"
+cdp_endpoint = ""        # e.g. "http://127.0.0.1:9222" (start Chrome with --remote-debugging-port=9222)
+browser = "chrome"       # chrome | firefox | webkit | msedge
+viewport = "1440x900"
+headless = true          # false (or --headed): a real window on your desktop - watch it work, take over for a CAPTCHA
+upload_dirs = []         # folders the agent may upload files from (plus its run folder), e.g. ["~/Pictures/to-post"]
+slow_mo_ms = 0           # headed runs only: e.g. 300 to follow each action by eye
+show_actions = true      # headed: label each action on the page as it happens
+caps = "vision,pdf,devtools"
+allowed_origins = ""     # e.g. "https://shop.example.com;https://pay.example.com"; empty = all. Not a security boundary.
+blocked_origins = ""
+record_trace = true
+record_video = true
+# Text files in a run folder are always scrubbed of secret values when the run ends. Screenshots and video cannot
+# be: they show what was on screen (e.g. a card number while typing). false = delete them from runs that used secrets.
+keep_media_with_secrets = true
+mcp_bin = "node_modules/.bin/playwright-mcp"
+hidden_tools = []        # more Playwright MCP tools to hide from the model
+
+[secrets]
+provider = "none"        # none | env | dotenv | bitwarden-sm | bitwarden | 1password
+dotenv_path = ""         # dotenv: a KEY=value file, chmod 600
+token_file = ""          # bitwarden-sm: machine-account access token; 1password: service-account token (chmod 600)
+project_id = ""          # bitwarden-sm: only secrets of this project
+session_file = ""        # bitwarden: file with the session key from `bw unlock --raw` (chmod 600)
+folders = []             # bitwarden: only items in these vault folders, e.g. ["agents"] - keep personal items out of reach
+# NAME the model uses -> where the value lives: env var name, dotenv key, Bitwarden SM secret key,
+# "item name::field" for the Bitwarden vault (e.g. "Agent test card::number"), or an op:// reference
+[secrets.map]
+# CARD_NUMBER = "op://agent/Test card/number"
+
+[policy]
+default = "ask"
+use_default_rules = true # payment, signature (wallet pages), publish/post/send, destructive account actions
+# Your own rules come first; the first match decides. action: allow | ask | deny
+# [[policy.rules]]
+# category = "payment"
+# pattern = "(?i)\\b(pay|place order)\\b"
+# url = "(?i)shop\\.example\\.com"
+# action = "deny"
+
+[human]
+mode = "auto-detect"     # terminal | file | auto | auto-detect (terminal when interactive, else file)
+timeout_s = 900          # unanswered requests are denied after this
+notify_command = ""      # e.g. "notify-send {title} {body}" or a curl to your chat bot
+auto_answer = "deny"     # for mode auto (tests only)

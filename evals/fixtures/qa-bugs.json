@@ -1,0 +1,165 @@
+{
+  "app": "/qa/ on the fixture server (evals/fixtures/server.py); page source: evals/fixtures/static/qa/index.html",
+  "bugs": [
+    {
+      "id": "login-validation",
+      "keywords": [
+        "e-mail",
+        "email",
+        "valid",
+        "@",
+        "password"
+      ],
+      "what": "Log in accepts any text as an e-mail (no @ check) and an empty password.",
+      "match": [
+        [
+          "log in",
+          "login",
+          "sign in",
+          "e-mail",
+          "email"
+        ],
+        [
+          "@",
+          "valid",
+          "password",
+          "any text",
+          "empty",
+          "accept"
+        ]
+      ]
+    },
+    {
+      "id": "cart-total",
+      "keywords": [
+        "total"
+      ],
+      "what": "With 2+ different plants in the cart the Total is string-concatenated (e.g. $024.5012.00).",
+      "match": [
+        [
+          "total"
+        ],
+        [
+          "concat",
+          "string",
+          "wrong",
+          "incorrect",
+          "nan",
+          "sum",
+          "calculat",
+          "024",
+          "append",
+          "garbled",
+          "malformed",
+          "not add"
+        ]
+      ]
+    },
+    {
+      "id": "checkout-blocked",
+      "keywords": [
+        "checkout"
+      ],
+      "what": "A transparent layer covers the Checkout button, so clicking it does nothing.",
+      "match": [
+        [
+          "checkout",
+          "check out"
+        ],
+        [
+          "nothing",
+          "not work",
+          "doesn't",
+          "does not",
+          "no effect",
+          "unresponsive",
+          "block",
+          "overlay",
+          "intercept",
+          "cannot",
+          "can't",
+          "fail",
+          "not clickable",
+          "no confirmation"
+        ]
+      ]
+    },
+    {
+      "id": "console-error",
+      "keywords": [
+        "console",
+        "typeerror",
+        "recommendations",
+        "javascript error"
+      ],
+      "what": "Opening Shop throws TypeError (reading 'title' of undefined) in the console.",
+      "match": [
+        [
+          "console",
+          "typeerror",
+          "javascript error",
+          "js error",
+          "uncaught",
+          "exception",
+          "recommendations",
+          "undefined"
+        ]
+      ]
+    },
+    {
+      "id": "help-404",
+      "keywords": [
+        "help",
+        "404",
+        "not found"
+      ],
+      "what": "The Help link leads to a 404 page.",
+      "match": [
+        [
+          "help"
+        ],
+        [
+          "404",
+          "not found",
+          "broken",
+          "missing",
+          "error",
+          "dead"
+        ]
+      ]
+    },
+    {
+      "id": "invisible-price",
+      "keywords": [
+        "fern",
+        "price",
+        "invisible",
+        "white",
+        "contrast",
+        "not visible"
+      ],
+      "what": "The Fern price is white on white: present in the page text but not visible on screen.",
+      "match": [
+        [
+          "fern",
+          "price"
+        ],
+        [
+          "invisible",
+          "white",
+          "contrast",
+          "not visible",
+          "hidden",
+          "missing",
+          "blank",
+          "cannot see",
+          "can't see",
+          "no price",
+          "not shown",
+          "unreadable"
+        ]
+      ]
+    }
+  ],
+  "note": "Never show this file to the agent. checks.py scores QA runs by matching findings to bugs: a finding matches a bug when its text (title, steps, expected, actual) contains at least one word of EVERY group in `match` (case-insensitive). Each finding counts for at most one bug. This is approximate: a vague or oddly worded finding can be missed, and `keywords` is kept only for reference."
+}

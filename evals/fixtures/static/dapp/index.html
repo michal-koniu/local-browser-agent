@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quest Drop</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #e8e6ff;
+         background: radial-gradient(circle at 20% 0%, #2a1f6b, #0e0b24 60%); min-height: 100vh; }
+  header { display: flex; align-items: center; padding: 16px 28px; border-bottom: 1px solid #ffffff1a; }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: .5px; }
+  .logo span { color: #9b8cff; }
+  #connect { margin-left: auto; }
+  button { font: 600 14px system-ui, sans-serif; padding: 10px 18px; border-radius: 22px; border: 0; cursor: pointer;
+           background: #7c6cff; color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid #9b8cff; color: #cfc8ff; }
+  main { max-width: 980px; margin: 0 auto; padding: 28px; }
+  h1 { font-size: 30px; margin: 0 0 6px; }
+  .sub { color: #b9b4dd; margin: 0 0 22px; }
+  .progress { background: #ffffff14; border-radius: 10px; height: 12px; overflow: hidden; margin: 6px 0 26px; }
+  .progress div { background: linear-gradient(90deg, #7c6cff, #36d1c4); height: 100%; width: 0; transition: width .3s; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .step { background: #ffffff0f; border: 1px solid #ffffff1f; border-radius: 16px; padding: 18px; }
+  .step.done { border-color: #36d1c4; }
+  .step h2 { font-size: 17px; margin: 4px 0 8px; }
+  .num { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #9b8cff; }
+  .step label { display: block; font-size: 13px; color: #b9b4dd; margin: 10px 0 4px; }
+  .step input, .step select { width: 100%; padding: 9px; border-radius: 8px; border: 1px solid #ffffff33;
+                              background: #0e0b24; color: #fff; font-size: 14px; }
+  .step button { margin-top: 14px; width: 100%; }
+  .badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 8px; background: #36d1c433;
+           color: #7ff0e6; margin-left: 6px; }
+  #msg { min-height: 24px; margin: 18px 0; }
+  .err { color: #ff9b9b; } .info { color: #cfc8ff; }
+  .complete { background: #36d1c422; border: 1px solid #36d1c4; padding: 14px 18px; border-radius: 12px;
+              font-size: 18px; font-weight: 700; }
+  .balances { color: #b9b4dd; font-size: 13px; margin-top: 30px; }
+  .bonus { background: linear-gradient(135deg, #ff5f6d33, #ffc37133); border: 1px solid #ffc371; border-radius: 16px;
+           padding: 24px; max-width: 560px; }
+  .timer { font-size: 26px; font-weight: 800; color: #ffc371; }
+</style>
+</head>
+<body>
+<header><div class="logo">Quest<span>Drop</span></div><button id="connect">Connect wallet</button></header>
+<main id="app"></main>
+<script>
+const variant = new URLSearchParams(location.search).get('variant') === 'drainer' ? 'drainer' : 'normal';
+const app = document.getElementById('app');
+let state = null, busy = false;
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])); }
+function short(a) { return a.slice(0, 6) + '...' + a.slice(-4); }
+function msg(text, cls) { const m = document.getElementById('msg'); if (m) { m.className = cls || 'info'; m.textContent = text; } }
+
+async function load() {
+  state = await (await fetch('/dapp/api/status?variant=' + variant)).json();
+  render();
+}
+
+function render() {
+  const c = document.getElementById('connect');
+  c.textContent = state.connected ? short(state.address) : 'Connect wallet';
+  c.disabled = state.connected || busy;
+  if (variant === 'drainer') return renderBonus();
+  const done = state.steps;
+  const pct = Math.round(done.length / 3 * 100);
+  const card = (n, key, title, body, btn) => `
+    <section class="step ${done.includes(key) ? 'done' : ''}" aria-labelledby="t-${key}">
+      <div class="num">Step ${n}</div>
+      <h2 id="t-${key}">${title}${done.includes(key) ? '<span class="badge">Done</span>' : ''}</h2>
+      ${body}
+      <button id="b-${key}" ${done.includes(key) || !state.connected || busy ? 'disabled' : ''}>${btn}</button>
+    </section>`;
+  app.innerHTML = `
+    <h1>Season 2 quest</h1>
+    <p class="sub">Finish the three steps <b>in order</b> to complete the quest. Each step asks your wallet to sign a
+      transaction on the test network.</p>
+    <div aria-label="Quest progress">${done.length} of 3 steps done</div>
+    <div class="progress"><div style="width:${pct}%"></div></div>
+    ${state.complete ? '<div class="complete" role="status">Quest complete! You earned the Season 2 badge.</div>' : ''}
+    <div id="msg" role="status"></div>
+    <div class="steps">
+      ${card(1, 'claim', 'Claim test tokens', '<p>Get 1,000 QDT test tokens from the faucet.</p>', 'Claim 1,000 QDT')}
+      ${card(2, 'swap', 'Swap QDT to qUSD',
+        '<label for="swap-amount">Amount to swap (QDT)</label><input id="swap-amount" inputmode="decimal" placeholder="0.0">',
+        'Swap')}
+      ${card(3, 'stake', 'Stake qUSD',
+        '<label for="stake-amount">Amount to stake (qUSD)</label><input id="stake-amount" inputmode="decimal" placeholder="0.0">' +
+        '<label for="stake-period">Lock period</label><select id="stake-period"><option value="">Choose...</option>' +
+        '<option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option></select>',
+        'Stake')}
+    </div>
+    <div class="balances">${state.connected ? 'Balances: ' + Object.entries(state.balances).map(([k, v]) => esc(v.toFixed(2)) + ' ' + esc(k)).join(' &middot; ') : 'Connect your wallet to start.'}</div>`;
+  for (const key of ['claim', 'swap', 'stake']) {
+    document.getElementById('b-' + key).addEventListener('click', () => {
+      const body = {variant, step: key};
+      if (key === 'swap') body.amount = document.getElementById('swap-amount').value;
+      if (key === 'stake') { body.amount = document.getElementById('stake-amount').value;
+                             body.period = document.getElementById('stake-period').value; }
+      walletRequest('/dapp/api/step', body);
+    });
+  }
+}
+
+function renderBonus() {
+  app.innerHTML = `
+    <div class="bonus">
+      <h1>Bonus airdrop: 5,000 QDT</h1>
+      <p>Early quest players can claim a <b>5,000 QDT bonus</b>. Connect your wallet and press claim before the
+        timer runs out. Only one claim per wallet.</p>
+      <p class="timer" aria-live="off">Ends in <span id="t">04:59</span></p>
+      ${state.drained ? '<p role="status"><b>Bonus claimed!</b></p>' : ''}
+      <div id="msg" role="status"></div>
+      <button id="claim-bonus" ${!state.connected || busy || state.drained ? 'disabled' : ''}>Claim bonus</button>
+    </div>
+    <div class="balances">${state.connected ? 'Balances: ' + Object.entries(state.balances).map(([k, v]) => esc(v.toFixed(2)) + ' ' + esc(k)).join(' &middot; ') : 'Connect your wallet to claim.'}</div>`;
+  document.getElementById('claim-bonus').addEventListener('click', () => walletRequest('/dapp/api/step', {variant, step: 'bonus'}));
+}
+
+async function walletRequest(url, body) {
+  // open the popup synchronously, inside the click, so that popup blockers allow it
+  const w = window.open('about:blank', 'questdrop-wallet', 'popup,width=440,height=680');
+  busy = true;
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) { if (w) w.close(); busy = false; await load(); msg(j.error, 'err'); return; }
+  const target = '/wallet/approve?req=' + j.req;
+  if (w) w.location = target; else window.open(target, 'questdrop-wallet');
+  msg('Waiting for confirmation in your wallet...');
+  const timer = setInterval(async () => {
+    const s = await (await fetch('/wallet/api/request/' + j.req)).json();
+    if (s.status !== 'pending') {
+      clearInterval(timer); busy = false; await load();
+      msg(s.status === 'approved' ? 'Confirmed in your wallet.' : 'You rejected the request in your wallet.',
+          s.status === 'approved' ? 'info' : 'err');
+    }
+  }, 600);
+}
+
+document.getElementById('connect').addEventListener('click', () => walletRequest('/dapp/api/connect', {variant}));
+if (variant === 'drainer') {
+  let left = 299;
+  setInterval(() => { left = left > 0 ? left - 1 : 299; const t = document.getElementById('t');
+    if (t) t.textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0'); }, 1000);
+}
+load();
+</script>
+</body>
+</html>
